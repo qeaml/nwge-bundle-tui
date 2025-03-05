@@ -92,7 +92,7 @@ s32 main(s32 argc, CStr argv[])
       break;
     }
   }
-  s32 width = SDL_min(2+16+3+10+3+10, pathLen+2);
+  s32 width = SDL_max(1+16+3+10+3+10+1, pathLen-filenameStart+2);
   s32 height = reader.tree.count+4;
   s32 y, x;
   getmaxyx(stdscr, y, x);
