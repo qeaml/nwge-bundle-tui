@@ -1,0 +1,14 @@
+* text=auto
+*.md text
+*.sh text
+*.bat text eol=crlf
+*.json text
+*.txt text
+*.png binary
+*.bmp binary
+*.cfn binary
+
+*.g.* linguist-generated
+
+*.gitattributes text export-ignore linguist-language=gitattributes linguist-detectable=true linguist-documentation=false
+.gitignore text export-ignore
