@@ -7,6 +7,7 @@
 
 WINDOW *win;
 u32 selection;
+SDL_RWops *file;
 BndlReader reader;
 
 static void putFileName(const BndlFile *file)
@@ -65,7 +66,7 @@ s32 main(s32 argc, CStr argv[])
   }
 
   CStr path = argv[1];
-  SDL_RWops *file = SDL_RWFromFile(path, "rb");
+  file = SDL_RWFromFile(path, "rb");
   if(file == NULL) {
     fprintf(stderr, "%s\n", SDL_GetError());
     return 1;
@@ -94,10 +95,11 @@ s32 main(s32 argc, CStr argv[])
   }
   s32 width = SDL_max(1+16+3+10+3+10+1, pathLen-filenameStart+2);
   s32 height = reader.tree.count+4;
-  s32 y, x;
-  getmaxyx(stdscr, y, x);
-  y = (y - height) / 2;
-  x = (x - width) / 2;
+  s32 maxY, maxX;
+  getmaxyx(stdscr, maxY, maxX);
+  mvaddstr(maxY-1, 0, "Use <Up> and <Down> to navigate. Press <Q> to quit.");
+  s32 y = (maxY - height) / 2;
+  s32 x = (maxX - width) / 2;
   win = newwin(height, width, y, x);
 
   box(win, 0, 0);
