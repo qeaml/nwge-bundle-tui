@@ -1,14 +1,90 @@
+#include <ncurses.h>
+#include <nwge/bndl/reader.h>
 #include <SDL2/SDL_error.h>
 #include <SDL2/SDL_rwops.h>
 #include <SDL2/SDL_stdinc.h>
-#include <ncurses.h>
-#include <nwge/bndl/reader.h>
+#include <stdarg.h>
 #include <stdio.h>
+
+#define NAME_BUF_SZ (BNDL_FILE_NAME_LEN+1+BNDL_FILE_EXT_LEN+1)
+
+static void copyFileNameToBuf(const BndlFile *file, char *buf)
+{
+  for(s32 i = 0; i < BNDL_FILE_NAME_LEN; ++i) {
+    if(file->name[i] == '\0') {
+      break;
+    }
+    *buf++ = file->name[i];
+  }
+  if(file->ext[0] == '\0') {
+    *buf = '\0';
+    return;
+  }
+  *buf++ = '.';
+  for(s32 i = 0; i < BNDL_FILE_EXT_LEN; ++i) {
+    if(file->ext[i] == '\0') {
+      break;
+    }
+    *buf++ = file->ext[i];
+  }
+  *buf = '\0';
+}
+
+static void showDialog(const char *title, int lines, ...)
+{
+  s32 maxX, maxY;
+  getmaxyx(stdscr, maxY, maxX);
+  s32 x = 3;
+  s32 width = maxX - (2*x);
+  s32 height = 2+lines;
+  s32 y = (maxY - height) - 2;
+  WINDOW *dialog = newwin(height, width, y, x);
+  wattron(dialog, A_REVERSE);
+  box(dialog, 0, 0);
+  wmove(dialog, 0, 1);
+  waddstr(dialog, title);
+  wattroff(dialog, A_REVERSE);
+  va_list ap;
+  va_start(ap, lines);
+  for(int i = 0; i < lines; ++i) {
+    wmove(dialog, 1+i, 1);
+    waddstr(dialog, va_arg(ap, const char*));
+  }
+  va_end(ap);
+  wrefresh(dialog);
+  refresh();
+  getch();
+  wclear(dialog);
+  wrefresh(dialog);
+  refresh();
+  delwin(dialog);
+}
 
 WINDOW *win;
 u32 selection;
-SDL_RWops *file;
+SDL_RWops *bndlRW;
 BndlReader reader;
+
+static void extractFile(const BndlFile *file)
+{
+  char fileName[NAME_BUF_SZ];
+  copyFileNameToBuf(file, fileName);
+
+  SDL_RWops *outRW = SDL_RWFromFile(fileName, "wb");
+  if(outRW == NULL) {
+    showDialog("Error", 2, "Could not extract file:", SDL_GetError());
+    return;
+  }
+  char *fileData = malloc(file->size);
+  SDL_RWseek(bndlRW, file->offset, RW_SEEK_SET);
+  SDL_RWread(bndlRW, fileData, sizeof(char), file->size);
+
+  SDL_RWwrite(outRW, fileData, sizeof(char), file->size);
+  SDL_RWclose(outRW);
+  free(fileData);
+
+  showDialog("Success", 2, "Successfully extracted file:", fileName);
+}
 
 static void putFileName(const BndlFile *file)
 {
@@ -66,13 +142,13 @@ s32 main(s32 argc, CStr argv[])
   }
 
   CStr path = argv[1];
-  file = SDL_RWFromFile(path, "rb");
-  if(file == NULL) {
+  bndlRW = SDL_RWFromFile(path, "rb");
+  if(bndlRW == NULL) {
     fprintf(stderr, "%s\n", SDL_GetError());
     return 1;
   }
 
-  BndlErr err = bndlInitReader(&reader, file);
+  BndlErr err = bndlInitReader(&reader, bndlRW);
   if(err != BndlErrOK) {
     fprintf(stderr, "Could not initialize reader:\n%s\n", bndlErrorMsg(err));
     bndlFreeReader(&reader);
@@ -97,7 +173,7 @@ s32 main(s32 argc, CStr argv[])
   s32 height = reader.tree.count+4;
   s32 maxY, maxX;
   getmaxyx(stdscr, maxY, maxX);
-  mvaddstr(maxY-1, 0, "Use <Up> and <Down> to navigate. Press <Q> to quit.");
+  mvaddstr(maxY-1, 0, "Use <Up> and <Down> to navigate. Press <X> to extract file. Press <Q> to quit.");
   s32 y = (maxY - height) / 2;
   s32 x = (maxX - width) / 2;
   win = newwin(height, width, y, x);
@@ -165,6 +241,8 @@ s32 main(s32 argc, CStr argv[])
       } else {
         updateSelection(selection + 1);
       }
+    } else if(cmd == 'x') {
+      extractFile(&reader.tree.files[selection]);
     }
     wrefresh(win);
   } while(1);
